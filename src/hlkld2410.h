@@ -17,7 +17,7 @@ const char readfirmware[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa0, 0x00, 0x0
 const char restorefactory[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa2, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char restartmodule[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa3, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char getmacaddress[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xa5, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01};
-//                                FD FC FB FA 04 00 A5 00 01 00 04 03 02 01
+
 const char beginconfigmark = 0xff;
 const char endconfigmark = 0xfe;
 const char readparammark = 0x61;
@@ -42,8 +42,9 @@ public:
     ~HLKLD2410();
 
     void run();
-    QString lastError() { return m_lastError; }
     bool isOpen() { return m_open; }
+    void version() { return m_version; }
+    void mac() { return m_macAddress; }
 
     typedef struct PAYLOAD {
         uint8_t targetStatus;
@@ -59,7 +60,7 @@ public slots:
 
 signals:
     void data(Payload);
-    void error();
+    void error(QSerialPort::SerialPortError error);
 
 private:
     uint16_t runConfigCommand(uint8_t marker, QByteArray &cmd);
@@ -99,12 +100,11 @@ private:
     QSerialPort m_serial;
     QByteArray m_lastFrame;
     QString m_portName;
-    QString m_lastError;
     bool m_open;
 
     uint16_t m_protocolVersion();
     uint16_t m_bufferSize;
-    QByteArray m_macAddress;
+    QString m_macAddress;
     QString m_version;
     uint8_t m_targetState;
 };

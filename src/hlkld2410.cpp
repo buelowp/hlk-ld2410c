@@ -122,8 +122,13 @@ void HLKLD2410::getMacAddress()
     uint16_t size = 0;
 
     if ((size = runConfigCommand(getmacaddressmark, m_getMacAddress)) > 0) {
-        m_macAddress = m_lastFrame.mid(10, 6);
-        qDebug() << __PRETTY_FUNCTION__ << ": Device MAC:" << m_macAddress.toHex();
+        for (int i = 10; i < 16; i++) {
+            if (i != 15)
+                m_macAddress += QString::number(decode8Bit(i), 16).toUpper() + ":";
+            else
+                m_macAddress += QString::number(decode8Bit(i), 16).toUpper();
+        }
+        qDebug() << __PRETTY_FUNCTION__ << ": Device MAC:" << m_macAddress;
     }
     else {
         qWarning() << __PRETTY_FUNCTION__ << ": Got a bad ACK for MAC command:" << size << ":" << m_lastFrame.toHex();
@@ -136,9 +141,10 @@ void HLKLD2410::getFirmwareVersion()
     uint16_t size = 0;
 
     if ((size = runConfigCommand(firmwaremark, m_getFirmwareVersion)) == 12) {
-        uint16_t major = getMajorVersionNumber();
-        uint32_t minor = getMinorVersionNumber();
-        m_version = QString("V%1.%2").arg(major).arg(minor);
+        uint8_t major = decode8Bit(11);
+        uint8_t minor = decode8Bit(10);
+        uint32_t sub = decode32Bit(12);
+        m_version = QString("V%1.%2.%3").arg(major).arg(minor).arg(sub);
         qDebug() << __PRETTY_FUNCTION__ << ": Version" << m_version;
     }
     else {
@@ -184,12 +190,12 @@ uint16_t HLKLD2410::getProtocolVersion()
 
 uint16_t HLKLD2410::getMajorVersionNumber()
 {
-    return decode16Bit(12);
+    return decode8Bit(11);
 }
 
 uint32_t HLKLD2410::getMinorVersionNumber()
 {
-    return decode32Bit(14);
+    return decode8Bit(10);
 }
 
 bool HLKLD2410::commandSuccess()
