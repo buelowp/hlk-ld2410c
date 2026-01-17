@@ -17,6 +17,10 @@ const char readfirmware[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa0, 0x00, 0x0
 const char restorefactory[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa2, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char restartmodule[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa3, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char getmacaddress[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xa5, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char turnoffbluetooth[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA4, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char setbluetoothstate[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA4, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char setresolution[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char getresolution[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAB, 0x00, 0x04, 0x03, 0x02, 0x01};
 
 const char beginconfigmark = 0xff;
 const char endconfigmark = 0xfe;
@@ -30,7 +34,8 @@ const char restorefactorymark = 0xa2;
 const char restartmodulemark = 0xa3;
 const char bluetoothmark = 0xa4;
 const char getmacaddressmark = 0xa5;
-const char distanceresolutionmark = 0xab;
+const char setresolutionmark = 0xaa;
+const char getresolutionmark = 0xab;
 const char headmarker = 0xaa;
 const char tailmarker = 0x55;
 
@@ -41,11 +46,6 @@ public:
     HLKLD2410(QString portName, QObject *parent = nullptr);
     ~HLKLD2410();
 
-    void run();
-    bool isOpen() { return m_open; }
-    void version() { return m_version; }
-    void mac() { return m_macAddress; }
-
     typedef struct PAYLOAD {
         uint8_t targetStatus;
         uint16_t mTargetDistance;
@@ -54,6 +54,24 @@ public:
         uint8_t stTargetEnergy;
         uint16_t detectDistance;
     } Payload;
+
+    typedef enum RESOLUTION {
+        course = 0,
+        fine = 1,
+    } Resolution;
+
+    void run();
+    bool isOpen() { return m_open; }
+    QString version() { return m_version; }
+    QString mac() { return m_macAddress; }
+    bool startConfigMode();
+    bool endConfigMode();
+    void toggleBluetooth(bool state);
+    void reboot();
+    void setResolution(Resolution r);
+    Resolution resolution() { return m_resolution; }
+    void restoreFactorySettings();
+
 
 public slots:
     void errorOccurred(QSerialPort::SerialPortError error);
@@ -68,8 +86,9 @@ private:
     bool isValidDataFrame();
     void getMacAddress();
     void getFirmwareVersion();
+    void getResolution();
     bool configEnable();
-    void configDisable();
+    bool configDisable();
     uint16_t getSize();
     uint8_t getMarker();
     uint8_t getDataType();
@@ -82,6 +101,7 @@ private:
     uint32_t decode32Bit(int begin, int size = 4);
     uint8_t decode8Bit(int begin, int size = 1);
     void parseDataFrame();
+    bool getACKStatus();
 
 
     Payload m_payload;
@@ -96,15 +116,22 @@ private:
     QByteArray m_getFirmwareVersion;
     QByteArray m_getMacAddress;
     QByteArray m_configEnable;
+    QByteArray m_bluetoothState;
+    QByteArray m_restartModule;
+    QByteArray m_setResolution;
+    QByteArray m_getResolution;
+    QByteArray m_restoreFactorySettings;
 
     QSerialPort m_serial;
     QByteArray m_lastFrame;
     QString m_portName;
     bool m_open;
+    bool m_config;
 
     uint16_t m_protocolVersion();
     uint16_t m_bufferSize;
     QString m_macAddress;
     QString m_version;
     uint8_t m_targetState;
+    Resolution m_resolution;
 };

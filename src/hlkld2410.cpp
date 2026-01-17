@@ -12,6 +12,11 @@ HLKLD2410::HLKLD2410(QString portName, QObject *parent) : QObject(parent)
     m_getFirmwareVersion = QByteArray::fromRawData(readfirmware, sizeof(readfirmware));
     m_getMacAddress = QByteArray::fromRawData(getmacaddress, sizeof(getmacaddress));
     m_configEnable = QByteArray::fromRawData(configenable, sizeof(configenable));
+    m_bluetoothState = QByteArray::fromRawData(turnoffbluetooth, sizeof(turnoffbluetooth));
+    m_restartModule = QByteArray::fromRawData(restartmodule, sizeof(restartmodule));
+    m_restoreFactorySettings = QByteArray::fromRawData(restorefactory, sizeof(restorefactory));
+    m_getResolution = QByteArray::fromRawData(getresolution, sizeof(getresolution));
+    m_setResolution = QByteArray::fromRawData(setresolution, sizeof(setresolution));
 
     m_open = false;
     m_portName = portName;
@@ -21,7 +26,7 @@ HLKLD2410::HLKLD2410(QString portName, QObject *parent) : QObject(parent)
     m_serial.setBaudRate(256000);
     m_open = m_serial.open(QIODevice::ReadWrite);
     if (!m_open) {
-        m_lastError = QString("Unable to open %2: %3").arg(m_portName).arg(m_serial.error());
+        qWarning() << __PRETTY_FUNCTION__ << ": Serial port" << m_portName << "did not open successfully";
     }
 }
 
@@ -35,6 +40,7 @@ void HLKLD2410::run()
     if (configEnable()) {
         getMacAddress();
         getFirmwareVersion();
+        getResolution();
     }
 
     configDisable();
@@ -46,6 +52,63 @@ void HLKLD2410::run()
             m_lastFrame.clear();
         }
     }
+}
+
+bool HLKLD2410::startConfigMode()
+{
+    m_config = configEnable();
+    return m_config;
+}
+
+bool HLKLD2410::endConfigMode()
+{
+    if (m_config) {
+        if (configDisable()) {
+            m_config = false;
+            return true;
+        }
+        return false;
+    }
+    return true;
+}
+
+void HLKLD2410::restoreFactorySettings()
+{
+    if (m_config) {
+        runConfigCommand(restorefactorymark, m_restoreFactorySettings);
+    }
+}
+
+void HLKLD2410::toggleBluetooth(bool state)
+{
+    if (m_config) {
+        QByteArray t = m_bluetoothState;
+        if (state) {
+            t[8] == 0x01;
+            runConfigCommand(bluetoothmark, t);
+        }
+        else
+            runConfigCommand(bluetoothmark, t);
+    }
+}
+
+void HLKLD2410::reboot()
+{
+    if (m_config) {
+        runConfigCommand(restartmodulemark, m_restartModule);
+    }
+}
+
+void HLKLD2410::setResolution(Resolution r)
+{
+    if (m_config) {
+        QByteArray t = m_setResolution;
+        if (r == Resolution::fine) {
+            t[8] = 0x01;
+        }
+        runConfigCommand(setresolutionmark, t);
+    }
+    getResolution();
 }
 
 void HLKLD2410::parseDataFrame()
@@ -76,7 +139,7 @@ uint16_t HLKLD2410::runConfigCommand(uint8_t marker, QByteArray &cmd)
                     return getSize();
                 }
                 else {
-                    qDebug() << __PRETTY_FUNCTION__ << ": Unexpected marker" << getMarker() << ", expecting" << marker;
+                    qDebug() << __PRETTY_FUNCTION__ << ": Unexpected marker" << getMarker() << ", expecting" << marker << ":" << m_lastFrame.toHex();
                 }
             }
             else {
@@ -103,16 +166,39 @@ bool HLKLD2410::configEnable()
     return false;
 }
 
-void HLKLD2410::configDisable()
+bool HLKLD2410::configDisable()
 {
     uint16_t size = 0;
 
-    qDebug() << __PRETTY_FUNCTION__ << ": Disabling config mode:";
+    qDebug() << __PRETTY_FUNCTION__ << ": Disabling config mode:" << m_configDisable.toHex();
     if ((size = runConfigCommand(endconfigmark, m_configDisable)) > 0) {
-        qDebug() << __PRETTY_FUNCTION__ << ": Config Disable Succeeded";
+        if (getMarker() == endconfigmark && getACKStatus()) {
+            m_lastFrame.clear();
+            return true;
+        }
     }
     else {
         qWarning() << __PRETTY_FUNCTION__ << ": Got" << m_lastFrame.toHex() << "instead of config disable ACK";
+    }
+    m_lastFrame.clear();
+    return false;
+}
+
+void HLKLD2410::getResolution()
+{
+    uint16_t size = 0;
+
+    if ((size = runConfigCommand(getresolutionmark, m_getResolution)) > 0) {
+        if (getMarker() == getresolutionmark && getACKStatus()) {
+            if (decode16Bit(12) == 1) {
+                m_resolution = Resolution::fine;
+                qDebug() << __PRETTY_FUNCTION__ << ": Sensor set for 20cm resolution";
+            }
+            else {
+                m_resolution = Resolution::course;
+                qDebug() << __PRETTY_FUNCTION__ << ": Sensor set for 75cm resolution";
+            }
+        }
     }
     m_lastFrame.clear();
 }
@@ -181,6 +267,11 @@ uint32_t HLKLD2410::decode32Bit(int begin, int size)
     uint32_t v = 0;
     s >> v;
     return v;
+}
+
+bool HLKLD2410::getACKStatus()
+{
+    return !static_cast<bool>(decode16Bit(8));
 }
 
 uint16_t HLKLD2410::getProtocolVersion()
