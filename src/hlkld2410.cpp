@@ -37,16 +37,23 @@ HLKLD2410::~HLKLD2410()
 
 void HLKLD2410::run()
 {
+    int frameCount = 0;
+
     if (configEnable()) {
         getMacAddress();
         getFirmwareVersion();
         getResolution();
+        configDisable();
     }
-
-    configDisable();
 
     while (m_serial.waitForReadyRead()) {
         m_lastFrame += m_serial.readAll();
+        // Guard against a runaway append situation, we should never get to 3.
+        if (frameCount++ == 3) {
+            m_lastFrame.clear();
+            frameCount = 0;
+        }
+
         if (isValidDataFrame()) {
             parseDataFrame();
             m_lastFrame.clear();
@@ -157,9 +164,10 @@ bool HLKLD2410::configEnable()
 
     qDebug() << __PRETTY_FUNCTION__ << ": Enabling config mode:";
     if ((size = runConfigCommand(beginconfigmark, m_configEnable)) > 0) {
-        qDebug() << __PRETTY_FUNCTION__ << ": Config Enable Succeeded";
-        m_lastFrame.clear();
-        return true;
+        if (getMarker() == beginconfigmark && getACKStatus()) {
+            m_lastFrame.clear();
+            return true;
+        }
     }
     qWarning() << __PRETTY_FUNCTION__ << ": Got" << m_lastFrame.toHex() << "instead of config enable ACK";
     m_lastFrame.clear();
@@ -170,7 +178,7 @@ bool HLKLD2410::configDisable()
 {
     uint16_t size = 0;
 
-    qDebug() << __PRETTY_FUNCTION__ << ": Disabling config mode:" << m_configDisable.toHex();
+    qDebug() << __PRETTY_FUNCTION__ << ": Disabling config mode";
     if ((size = runConfigCommand(endconfigmark, m_configDisable)) > 0) {
         if (getMarker() == endconfigmark && getACKStatus()) {
             m_lastFrame.clear();
@@ -319,9 +327,8 @@ bool HLKLD2410::isValidDataFrame()
     return (m_lastFrame.left(4) == m_headData) && (m_lastFrame.right(4) == m_tailData);
 }
 
-void HLKLD2410::errorOccurred(QSerialPort::SerialPortError error)
+void HLKLD2410::errorOccurred(QSerialPort::SerialPortError e)
 {
-    qWarning() << __PRETTY_FUNCTION__ << ":" << error;
-    if (error != QSerialPort::NoError)
-        QCoreApplication::quit();
+    if (e != QSerialPort::NoError)
+        emit error(e);
 }

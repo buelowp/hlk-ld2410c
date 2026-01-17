@@ -78,7 +78,7 @@ public slots:
 
 signals:
     void data(Payload);
-    void error(QSerialPort::SerialPortError error);
+    void error(QSerialPort::SerialPortError e);
 
 private:
     uint16_t runConfigCommand(uint8_t marker, QByteArray &cmd);
