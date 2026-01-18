@@ -9,15 +9,14 @@ const char headdata[] = {0xf4, 0xf3, 0xf2, 0xf1};
 const char taildata[] = {0xF8, 0xF7, 0xF6, 0xF5};
 const char configenable[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xFF, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char configdisable[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xFE, 0x00, 0x04, 0x03, 0x02, 0x01};
-const char enableEngineering[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x62, 0x00, 0x04, 0x03, 0x02, 0x01};
-const char readparam[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x61, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char enableengineering[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x62, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char closeproject[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x63, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char readparam[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x61, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char distancegate[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x64, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char readfirmware[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa0, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char restorefactory[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa2, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char restartmodule[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xa3, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char getmacaddress[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xa5, 0x00, 0x01, 0x00, 0x04, 0x03, 0x02, 0x01};
-const char turnoffbluetooth[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA4, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char setbluetoothstate[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA4, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char setresolution[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char getresolution[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAB, 0x00, 0x04, 0x03, 0x02, 0x01};
@@ -26,6 +25,9 @@ const char lightsense[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x06, 0x00, 0xAD, 0x00, 0x00,
 const char getlightsense[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAE, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char startnoisedetect[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0x0B, 0x00, 0x0A, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char querynoisedetect[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x1B, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char setbluetoothpass[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x08, 0x00, 0xA9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char togglebluetooth[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA4, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char readparams[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x61, 0x00, 0x04, 0x03, 0x02, 0x01};
 
 const char beginconfigmark = 0xff;
 const char endconfigmark = 0xfe;
@@ -39,6 +41,7 @@ const char restorefactorymark = 0xa2;
 const char restartmodulemark = 0xa3;
 const char bluetoothmark = 0xa4;
 const char getmacaddressmark = 0xa5;
+const char setbtpassmark = 0xa9;
 const char setresolutionmark = 0xaa;
 const char getresolutionmark = 0xab;
 const char lightsensemark = 0xad;
@@ -79,6 +82,15 @@ public:
         uint8_t outStatus;
     } EngineeringPayload;
 
+    typedef struct PARAMETERS {
+        uint8_t maxRange;
+        uint8_t movingThresholds;
+        uint8_t stationaryThresholds;
+        uint8_t mtValues[8];
+        uint8_t stThresholds[8];
+        uint16_t unoccupiedDuration;
+    } Parameters;
+
     typedef enum RESOLUTION {
         course = 0,
         fine = 1,
@@ -113,13 +125,18 @@ public:
         sterror = 3,
     } CalStatus;
 
+    typedef enum BTSTATE {
+        btoff = 0,
+        bton = 1,
+    } BluetoothState;
+
     void run();
     bool isOpen() { return m_open; }
     QString version() { return m_version; }
     QString mac() { return m_macAddress; }
     bool startConfigMode();
     bool endConfigMode();
-    void toggleBluetooth(bool state);
+    bool toggleBluetooth(BluetoothState state);
     void reboot();
     bool setResolution(Resolution r);
     Resolution resolution() { return m_resolution; }
@@ -129,6 +146,9 @@ public:
     bool getLightSense(uint8_t &s, uint8_t &v, uint8_t &m);
     bool runNoiseCal();
     CalStatus getNoiseCalStatus();
+    bool setBluetoothPassword(uint8_t *pass, int size = 6);
+    bool enableEngineering(bool state);
+    bool readParameters(Parameters *p);
 
 public slots:
     void errorOccurred(QSerialPort::SerialPortError error);
@@ -139,27 +159,27 @@ signals:
     void error(QSerialPort::SerialPortError e);
 
 private:
-    uint16_t runConfigCommand(uint8_t marker, QByteArray &cmd);
-    bool isValidConfigFrame();
-    bool isValidDataFrame();
+    uint16_t runConfigCommand(uint8_t marker, QByteArray &cmd, QByteArray *results);
+    bool isValidConfigFrame(QByteArray &frame);
+    bool isValidDataFrame(QByteArray &frame);
     void getMacAddress();
     void getFirmwareVersion();
     void getResolution();
     bool configEnable();
     bool configDisable();
-    uint16_t getSize();
-    uint8_t getMarker();
-    uint8_t getDataType();
-    bool commandSuccess();
-    uint16_t getProtocolVersion();
-    uint16_t getBufferSize();
-    uint16_t getMajorVersionNumber();
-    uint32_t getMinorVersionNumber();
-    uint16_t decode16Bit(int begin, int size = 2);
-    uint32_t decode32Bit(int begin, int size = 4);
-    uint8_t decode8Bit(int begin, int size = 1);
-    void parseDataFrame();
-    bool getACKStatus();
+    uint16_t getSize(QByteArray &frame);
+    uint8_t getMarker(QByteArray &frame);
+    uint8_t getDataType(QByteArray &frame);
+    bool commandSuccess(QByteArray &frame);
+    uint16_t getProtocolVersion(QByteArray &frame);
+    uint16_t getBufferSize(QByteArray &frame);
+    uint16_t getMajorVersionNumber(QByteArray &frame);
+    uint32_t getMinorVersionNumber(QByteArray &frame);
+    uint16_t decode16Bit(QByteArray &frame, int begin);
+    uint32_t decode32Bit(QByteArray &frame, int begin);
+    uint8_t decode8Bit(QByteArray &frame, int begin);
+    void parseDataFrame(QByteArray &frame);
+    bool getACKStatus(QByteArray &frame);
 
     Payload m_payload;
     EngineeringPayload m_enPayload;
@@ -169,8 +189,8 @@ private:
     QByteArray m_tailConfig;
     QByteArray m_configDisable;
     QByteArray m_enableEngineering;
-    QByteArray m_readParam;
     QByteArray m_closeProject;
+    QByteArray m_readParams;
     QByteArray m_getFirmwareVersion;
     QByteArray m_getMacAddress;
     QByteArray m_configEnable;
@@ -184,6 +204,7 @@ private:
     QByteArray m_getLightSense;
     QByteArray m_runNoiseCal;
     QByteArray m_queryNoiseCal;
+    QByteArray m_setBTPass;
 
     QSerialPort m_serial;
     QByteArray m_lastFrame;
