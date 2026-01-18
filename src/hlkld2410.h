@@ -24,6 +24,8 @@ const char getresolution[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAB, 0x00, 0x
 const char setbaudrate[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA1, 0x00, 0x07, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char lightsense[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x06, 0x00, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char getlightsense[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAE, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char startnoisedetect[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0x0B, 0x00, 0x0A, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char querynoisedetect[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x1B, 0x00, 0x04, 0x03, 0x02, 0x01};
 
 const char beginconfigmark = 0xff;
 const char endconfigmark = 0xfe;
@@ -43,6 +45,8 @@ const char lightsensemark = 0xad;
 const char getlightsensemark = 0xae;
 const char headmarker = 0xaa;
 const char tailmarker = 0x55;
+const char noisedetectstartmaker = 0x0b;
+const char noisequerymarker = 0x1b;
 
 class HLKLD2410 : public QObject
 {
@@ -102,6 +106,13 @@ public:
         high = 1,
     } PinMode;
 
+    typedef enum CALSTATUS {
+        stidle = 0,
+        stactive = 1,
+        stcomplete = 2,
+        sterror = 3,
+    } CalStatus;
+
     void run();
     bool isOpen() { return m_open; }
     QString version() { return m_version; }
@@ -116,6 +127,8 @@ public:
     bool setBaudRate(BaudRate);
     bool setLightSense(LightSense s, uint8_t v, PinMode p);
     bool getLightSense(uint8_t &s, uint8_t &v, uint8_t &m);
+    bool runNoiseCal();
+    CalStatus getNoiseCalStatus();
 
 public slots:
     void errorOccurred(QSerialPort::SerialPortError error);
@@ -169,6 +182,8 @@ private:
     QByteArray m_setBaudRate;
     QByteArray m_lightSense;
     QByteArray m_getLightSense;
+    QByteArray m_runNoiseCal;
+    QByteArray m_queryNoiseCal;
 
     QSerialPort m_serial;
     QByteArray m_lastFrame;

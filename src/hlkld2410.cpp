@@ -20,6 +20,8 @@ HLKLD2410::HLKLD2410(QString portName, QObject *parent) : QObject(parent)
     m_setBaudRate = QByteArray::fromRawData(setbaudrate, sizeof(setbaudrate));
     m_lightSense = QByteArray::fromRawData(lightsense, sizeof(lightsense));
     m_getLightSense = QByteArray::fromRawData(getlightsense, sizeof(getlightsense));
+    m_runNoiseCal = QByteArray::fromRawData(startnoisedetect, sizeof(startnoisedetect));
+    m_queryNoiseCal = QByteArray::fromRawData(querynoisedetect, sizeof(querynoisedetect));
 
     m_open = false;
     m_portName = portName;
@@ -138,6 +140,40 @@ bool HLKLD2410::setLightSense(LightSense s, uint8_t v, PinMode p)
     }
     m_lastFrame.clear();
     return false;
+}
+
+bool HLKLD2410::runNoiseCal()
+{
+    if (m_config) {
+        if (runConfigCommand(noisedetectstartmaker, m_runNoiseCal) > 0) {
+            m_lastFrame.clear();
+            return true;
+        }
+    }
+    m_lastFrame.clear();
+    return false;
+}
+
+HLKLD2410::CalStatus HLKLD2410::getNoiseCalStatus()
+{
+    if (m_config) {
+        if (runConfigCommand(noisequerymarker, m_queryNoiseCal) > 0) {
+            uint8_t s = decode8Bit(10);
+            m_lastFrame.clear();
+            switch (s) {
+                case 0:
+                    return CalStatus::stidle;
+                case 1:
+                    return CalStatus::stactive;
+                case 2:
+                    return CalStatus::stcomplete;
+                default:
+                    return CalStatus::sterror;
+            }
+        }
+    }
+    m_lastFrame.clear();
+    return CalStatus::sterror;
 }
 
 /*
