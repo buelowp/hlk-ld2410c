@@ -17,6 +17,9 @@ HLKLD2410::HLKLD2410(QString portName, QObject *parent) : QObject(parent)
     m_restoreFactorySettings = QByteArray::fromRawData(restorefactory, sizeof(restorefactory));
     m_getResolution = QByteArray::fromRawData(getresolution, sizeof(getresolution));
     m_setResolution = QByteArray::fromRawData(setresolution, sizeof(setresolution));
+    m_setBaudRate = QByteArray::fromRawData(setbaudrate, sizeof(setbaudrate));
+    m_lightSense = QByteArray::fromRawData(lightsense, sizeof(lightsense));
+    m_getLightSense = QByteArray::fromRawData(getlightsense, sizeof(getlightsense));
 
     m_open = false;
     m_portName = portName;
@@ -106,32 +109,80 @@ void HLKLD2410::reboot()
     }
 }
 
-void HLKLD2410::setResolution(Resolution r)
+bool HLKLD2410::setResolution(Resolution r)
 {
     if (m_config) {
         QByteArray t = m_setResolution;
-        if (r == Resolution::fine) {
-            t[8] = 0x01;
+        t[8] = r;
+        if (runConfigCommand(setresolutionmark, t) > 0) {
+            getResolution();
+            return true;
         }
-        runConfigCommand(setresolutionmark, t);
     }
-    getResolution();
+    return false;
 }
 
+bool HLKLD2410::setLightSense(LightSense s, uint8_t v, PinMode p)
+{
+    if (m_config) {
+        if (m_config) {
+            QByteArray t = m_lightSense;
+            t[8] = s;
+            t[9] = v;
+            t[10] = p;
+            if (runConfigCommand(lightsensemark, t) > 0) {
+                m_lastFrame.clear();
+                return true;
+            }
+        }
+    }
+    m_lastFrame.clear();
+    return false;
+}
+
+/*
+       1   2    1   2    1   2    1  1  ....................8   ....................8
+       8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38
+01 AA 03 1E 00 3C 00 00 39 00 00 08 08 3C 22 05 03 03 04 03 06 05 00 00 39 10 13 06 06 08 04 03 05 55 00
+01 aa 03 3a 00 64 49 00 64 39 00 08 08 64 64 29 0b 06 09 02 0a 07 00 00 64 64 64 4b 17 13 09 0c 01 55 00
+*/
 void HLKLD2410::parseDataFrame()
 {
-    int front = m_lastFrame.indexOf(headmarker);
-    int back = m_lastFrame.indexOf(tailmarker);
-    memset(&m_payload, 0, sizeof(m_payload));
-    if (front != -1 || back != -1) {
-        front = front + 1;
-        m_payload.targetStatus = decode8Bit(front);
-        m_payload.mTargetDistance = decode16Bit(front + 1);
-        m_payload.exTargetEnergy = decode8Bit(front + 3);
-        m_payload.sTargetDistance = decode16Bit(front + 4);
-        m_payload.stTargetEnergy = decode8Bit(front + 6);
-        m_payload.detectDistance = decode16Bit(front + 7);
-        emit data(m_payload);
+    uint8_t enmode = decode8Bit(6);
+
+    switch (enmode) {
+        case 1:
+            memset(&m_enPayload, 0, sizeof(m_enPayload));
+            m_enPayload.targetStatus = decode8Bit(8);
+            m_enPayload.mTargetDistance = decode16Bit(9);
+            m_enPayload.mTargetEnergy = decode8Bit(11);
+            m_enPayload.stTargetDistance = decode16Bit(12);
+            m_enPayload.stTargetEnergy = decode8Bit(14);
+            m_enPayload.detectDistance = decode16Bit(15);
+            m_enPayload.mmdd = decode8Bit(17);
+            m_enPayload.mmsd = decode8Bit(18);
+            for (int i = 19; i < 27; i++) {
+                m_enPayload.mddev[i] = decode8Bit(i);
+            }
+            for (int i = 27; i < 35; i++) {
+                m_enPayload.sddev[i] = decode8Bit(i);
+            }
+            m_enPayload.photoSensitive = decode8Bit(35);
+            m_enPayload.outStatus = decode8Bit(36);
+            emit engineeringData(m_enPayload);
+            break;
+        case 2:
+            memset(&m_payload, 0, sizeof(m_payload));
+            m_payload.targetStatus = decode8Bit(8);
+            m_payload.mTargetDistance = decode16Bit(9);
+            m_payload.mTargetEnergy = decode8Bit(11);
+            m_payload.stTargetDistance = decode16Bit(12);
+            m_payload.stTargetEnergy = decode8Bit(14);
+            m_payload.detectDistance = decode16Bit(15);
+            emit data(m_payload);
+            break;
+        default:
+            break;
     }
 }
 
@@ -187,6 +238,37 @@ bool HLKLD2410::configDisable()
     }
     else {
         qWarning() << __PRETTY_FUNCTION__ << ": Got" << m_lastFrame.toHex() << "instead of config disable ACK";
+    }
+    m_lastFrame.clear();
+    return false;
+}
+
+bool HLKLD2410::setBaudRate(BaudRate b)
+{
+    if (m_config) {
+        QByteArray t = m_setBaudRate;
+        t[8] = b;
+        if (runConfigCommand(setbaudratemark, t) > 0) {
+            m_lastFrame.clear();
+            return true;
+        }
+    }
+    m_lastFrame.clear();
+    return false;
+}
+
+bool HLKLD2410::getLightSense(uint8_t &s, uint8_t &v, uint8_t &m)
+{
+    uint16_t size = 0;
+
+    if ((size = runConfigCommand(getlightsensemark, m_getLightSense)) > 0) {
+        if (getMarker() == getlightsensemark && getACKStatus()) {
+            s = decode8Bit(10);
+            v = decode8Bit(11);
+            m = decode8Bit(12);
+            m_lastFrame.clear();
+            return true;
+        }
     }
     m_lastFrame.clear();
     return false;

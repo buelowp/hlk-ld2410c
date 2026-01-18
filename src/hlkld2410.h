@@ -21,6 +21,9 @@ const char turnoffbluetooth[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA4, 0x00,
 const char setbluetoothstate[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA4, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char setresolution[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
 const char getresolution[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAB, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char setbaudrate[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xA1, 0x00, 0x07, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char lightsense[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x06, 0x00, 0xAD, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01};
+const char getlightsense[] = {0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xAE, 0x00, 0x04, 0x03, 0x02, 0x01};
 
 const char beginconfigmark = 0xff;
 const char endconfigmark = 0xfe;
@@ -36,6 +39,8 @@ const char bluetoothmark = 0xa4;
 const char getmacaddressmark = 0xa5;
 const char setresolutionmark = 0xaa;
 const char getresolutionmark = 0xab;
+const char lightsensemark = 0xad;
+const char getlightsensemark = 0xae;
 const char headmarker = 0xaa;
 const char tailmarker = 0x55;
 
@@ -49,16 +54,53 @@ public:
     typedef struct PAYLOAD {
         uint8_t targetStatus;
         uint16_t mTargetDistance;
-        uint8_t exTargetEnergy;
-        uint16_t sTargetDistance;
+        uint8_t mTargetEnergy;
+        uint16_t stTargetDistance;
         uint8_t stTargetEnergy;
         uint16_t detectDistance;
     } Payload;
+
+    typedef struct ENGINEERING {
+        uint8_t targetStatus;
+        uint16_t mTargetDistance;
+        uint8_t mTargetEnergy;
+        uint16_t stTargetDistance;
+        uint8_t stTargetEnergy;
+        uint16_t detectDistance;
+        uint8_t mmdd;
+        uint8_t mmsd;
+        uint8_t mddev[8];
+        uint8_t sddev[8];
+        uint8_t photoSensitive;
+        uint8_t outStatus;
+    } EngineeringPayload;
 
     typedef enum RESOLUTION {
         course = 0,
         fine = 1,
     } Resolution;
+
+    typedef enum BAUDRATE {
+        B9600 = 1,
+        B19200 = 2,
+        B38400 = 3,
+        B57600 = 4,
+        B115200 = 5,
+        B230400 = 6,
+        B256000 = 7,
+        B460800 = 8,
+    } BaudRate;
+
+    typedef enum LIGHTSENSE {
+        off = 0,
+        togglelow = 1,
+        togglehigh = 2,
+    } LightSense;
+
+    typedef enum PINMODE {
+        low = 0,
+        high = 1,
+    } PinMode;
 
     void run();
     bool isOpen() { return m_open; }
@@ -68,16 +110,19 @@ public:
     bool endConfigMode();
     void toggleBluetooth(bool state);
     void reboot();
-    void setResolution(Resolution r);
+    bool setResolution(Resolution r);
     Resolution resolution() { return m_resolution; }
     void restoreFactorySettings();
-
+    bool setBaudRate(BaudRate);
+    bool setLightSense(LightSense s, uint8_t v, PinMode p);
+    bool getLightSense(uint8_t &s, uint8_t &v, uint8_t &m);
 
 public slots:
     void errorOccurred(QSerialPort::SerialPortError error);
 
 signals:
     void data(Payload);
+    void engineeringData(EngineeringPayload);
     void error(QSerialPort::SerialPortError e);
 
 private:
@@ -103,8 +148,8 @@ private:
     void parseDataFrame();
     bool getACKStatus();
 
-
     Payload m_payload;
+    EngineeringPayload m_enPayload;
     QByteArray m_headData;
     QByteArray m_tailData;
     QByteArray m_headConfig;
@@ -121,6 +166,9 @@ private:
     QByteArray m_setResolution;
     QByteArray m_getResolution;
     QByteArray m_restoreFactorySettings;
+    QByteArray m_setBaudRate;
+    QByteArray m_lightSense;
+    QByteArray m_getLightSense;
 
     QSerialPort m_serial;
     QByteArray m_lastFrame;
