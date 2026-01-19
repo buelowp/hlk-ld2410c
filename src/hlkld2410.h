@@ -67,7 +67,9 @@ public:
 
     /**
      * \struct Payload
-     * \details Contains the non engineering data structure.
+     * \brief Container for the non engineering data structure.
+     * \details Every new data frame is parsed into Payload and sent off to
+     * a consumer via a Qt SIGNAL.
      */
     typedef struct PAYLOAD {
         uint8_t targetStatus;
@@ -80,7 +82,10 @@ public:
 
     /**
      * \struct EngineeringPayload
-     * \details Contains all the engineering data structure.
+     * \brief Container for the engineering data structure.
+     * \details Every new data frame is parsed into EngineeringPayload and sent
+     * off to a consumer via a Qt SIGNAL. The engineering payload contains an extra
+     * set of values to indicate how some of the fields are calculated.
      */
     typedef struct ENGINEERING {
         uint8_t targetStatus;
@@ -99,7 +104,9 @@ public:
 
     /**
      * \struct Parameters
-     * \details The returned parameters from the Param getter function
+     * \brief A collection of device specific parameters which can be queried on request.
+     * \details It's not clear from the data sheet to me at least, what these are useful for,
+     * but the getter exists, so I added support for it. Use it as you see fit.'
      */
     typedef struct PARAMETERS {
         uint8_t maxRange;
@@ -112,6 +119,7 @@ public:
 
     /**
      * \enum Resolution
+     * \brief Device sensitivity resolution abstraction
      * \details Provides an abstraction for fine and course resolution settings
      */
     typedef enum RESOLUTION {
@@ -121,6 +129,7 @@ public:
 
     /**
      * \enum Baudrate
+     * \brief Device baud rate abstraction.
      * \details Provides an abstraction for the possible supported baudrate values
      */
     typedef enum BAUDRATE {
@@ -136,6 +145,7 @@ public:
 
     /**
      * \enum LightSense
+     * \brief Device light sensor state abstraction
      * \details Provides an abstraction for the possible supported AUX function light sensor values
      */
     typedef enum LIGHTSENSE {
@@ -146,6 +156,7 @@ public:
 
     /**
      * \enum PinMode
+     * \brief Device OUT pin action abstraction
      * \details Instructs the device to set the pin to be active LOW or active HIGH. See documentation for details. */
     typedef enum PINMODE {
         low = 0,                /*!< low, make the pin signal by going LOW */
@@ -154,6 +165,7 @@ public:
 
     /**
      * \enum CalStatus
+     * \brief Device noise floor calibration state abstraction
      * \details Provides an abstraction for the state of the noise floor calibration function
      */
     typedef enum CALSTATUS {
@@ -165,6 +177,7 @@ public:
 
     /**
      * \enum BluetoothState
+     * \brief Device bluetooth state setter abstraction
      * \details Provides an abstraction for setting the bluetooth state on the device
      */
     typedef enum BTSTATE {
