@@ -77,14 +77,10 @@ void HLKLD2410::run()
         // Guard against a runaway append situation, we should never get to 3.
         if (frameCount++ == 5) {
             qWarning() << __PRETTY_FUNCTION__ << ": Error decoding frame, data is likely incosistent now";
-            frame.clear();
-            frameCount = 0;
         }
 
         if (isValidDataFrame(frame)) {
             parseDataFrame(frame);
-            frame.clear();
-            frameCount = 0;
             return;
         }
     }
