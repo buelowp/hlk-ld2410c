@@ -10,12 +10,7 @@ TestRun::TestRun(QObject *parent) : QObject(parent)
     m_timer = new QTimer();
     m_timer->setInterval(2000);
     connect(m_timer, &QTimer::timeout, this, &TestRun::timeout);
-    m_timer->start();
-
-//    m_sensor->moveToThread(&m_thread);
-//    connect(this, &TestRun::startDevice, m_sensor, &HLKLD2410::run);
-//    m_thread.start();
-//    connect(&m_thread, QThread::finished, m_sensor, &HLKLD2410::deleteLater);
+//    m_timer->start();
 }
 
 TestRun::~TestRun()
@@ -27,20 +22,10 @@ void TestRun::run()
     uint8_t s, v, m;
 
     m_sensor->init();
-    if (m_sensor->startConfigMode()) {
-        m_sensor->readParameters(&p);
-//        m_sensor->toggleBluetooth(HLKLD2410::BluetoothState::btoff);
-//        m_sensor->setAuxFunction(HLKLD2410::LightSense::togglehigh, 64, HLKLD2410::PinMode::high);
-        m_sensor->getAuxFunction(s, v, m);
-        m_sensor->endConfigMode();
-    }
-
-    qDebug() << __PRETTY_FUNCTION__ << ": Parameters::unoccupiedDuration =" << p.unoccupiedDuration;
-    qDebug() << __PRETTY_FUNCTION__ << ": LightSense s =" << s << ", v =" << v << ", m =" << m;
 
     while (true) {
-        m_sensor->run();
         QCoreApplication::processEvents();
+        QThread::msleep(10);
     }
 }
 

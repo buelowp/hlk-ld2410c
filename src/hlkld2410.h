@@ -191,11 +191,11 @@ public:
     bool setBluetoothPassword(uint8_t *pass, int size = 6);
     bool enableEngineering(bool state);
     bool readParameters(Parameters *p);
-    void run();
     bool init();
 
 private slots:
     void errorOccurred(QSerialPort::SerialPortError error);
+    void handleData();
 
 signals:
     void data(Payload);
@@ -256,6 +256,8 @@ private:
     QString m_portName;
     bool m_open;
     bool m_config;
+    QByteArray m_frame;
+    int m_frameCount;
 
     uint16_t m_protocolVersion();
     uint16_t m_bufferSize;

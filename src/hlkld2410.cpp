@@ -3,6 +3,7 @@
 HLKLD2410::HLKLD2410(QString portName, QObject *parent) : QObject(parent)
 {
     connect(&m_serial, &QSerialPort::errorOccurred, this, &HLKLD2410::errorOccurred);
+    connect(&m_serial, &QSerialPort::readyRead, this, &HLKLD2410::handleData);
 
     m_headData = QByteArray::fromRawData(headdata, sizeof(headdata));
     m_tailData = QByteArray::fromRawData(taildata, sizeof(taildata));
@@ -46,6 +47,7 @@ bool HLKLD2410::init()
         return false;
     }
 
+    const QSignalBlocker blocker(&m_serial);
     if (configEnable()) {
         getMacAddress();
         getFirmwareVersion();
@@ -57,33 +59,26 @@ bool HLKLD2410::init()
 }
 
 /**
- * \fn void HLKLD2410::run()
- * \details This call is made to start talking to the device. It will briefly
- * enable engineering mode and retrieve the device MAC, Firmware version, and
- * currently set resolution. Once it's complete, data will start to be emitted
- * by the device, indicating the device is open and ready for use.
- *
- * Once done, it's possible to engage config mode at any point to make calls
- * to the device. In config mode, no radar data will be emitted until config
- * mode is complete.
+ * \fn void HLKLD2410::handleData()
+ * \details A slot called on a new serial data. This slot handles updating the class frame buffer
+ * and sending it to the parser on success.
  */
-void HLKLD2410::run()
+void HLKLD2410::handleData()
 {
-    int frameCount = 0;
-    QByteArray frame;
-
-    while (m_serial.waitForReadyRead()) {
-        frame += m_serial.readAll();
+    if (!isValidDataFrame(m_frame)) {
+        m_frame += m_serial.readAll();
         // Guard against a runaway append situation, we should never get to 3.
-        if (frameCount++ == 5) {
+        if (m_frameCount++ == 5) {
             qWarning() << __PRETTY_FUNCTION__ << ": Error decoding frame, data is likely incosistent now";
-        }
-
-        if (isValidDataFrame(frame)) {
-            parseDataFrame(frame);
+            qDebug() << __PRETTY_FUNCTION__ << ":" << m_frame.toHex() << ":" << m_frameCount;
+            m_frameCount = 0;
             return;
         }
+        return;
     }
+    parseDataFrame(m_frame);
+    m_frame.clear();
+    m_frameCount = 0;
 }
 
 /**
@@ -95,6 +90,7 @@ void HLKLD2410::run()
  */
 bool HLKLD2410::startConfigMode()
 {
+    m_serial.blockSignals(true);
     m_config = configEnable();
     return m_config;
 }
@@ -109,14 +105,20 @@ bool HLKLD2410::startConfigMode()
  */
 bool HLKLD2410::endConfigMode()
 {
+    bool rval;
+
     if (m_config) {
         if (configDisable()) {
             m_config = false;
-            return true;
+            rval = true;
         }
-        return false;
+        return rval = false;
     }
-    return true;
+    else {
+        rval = true;
+    }
+    m_serial.blockSignals(false);
+    return rval;
 }
 
 /**
