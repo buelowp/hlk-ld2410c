@@ -147,7 +147,7 @@ bool HLKLD2410::readParameters(Parameters *p)
                 p->mtValues[i] = decode8Bit(frame, i+14);
             }
             for (int i = 0; i < 9; i++) {
-                p->stThresholds[i] == decode8Bit(frame, i+23);
+                p->stThresholds[i] = decode8Bit(frame, i+23);
             }
             p->unoccupiedDuration = decode16Bit(frame, 32);
         }
@@ -215,7 +215,7 @@ bool HLKLD2410::toggleBluetooth(BluetoothState state)
         QByteArray t = m_bluetoothState;
         qDebug() << __PRETTY_FUNCTION__ << ": Setting bluetooth state to" << state;
         if (state == BluetoothState::bton)
-            t[8] == 0x01;
+            t[8] = 0x01;
 
         if (runConfigCommand(bluetoothmark, t, &frame) > 0)
             return true;
