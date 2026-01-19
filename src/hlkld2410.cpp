@@ -4,10 +4,10 @@ HLKLD2410::HLKLD2410(QString portName, QObject *parent) : QObject(parent)
 {
     connect(&m_serial, &QSerialPort::errorOccurred, this, &HLKLD2410::errorOccurred);
 
-    m_headData = QByteArray::fromRawData(headdata, 4);
-    m_tailData = QByteArray::fromRawData(taildata, 4);
-    m_headConfig = QByteArray::fromRawData(headconfig, 4);
-    m_tailConfig = QByteArray::fromRawData(tailconfig, 4);
+    m_headData = QByteArray::fromRawData(headdata, sizeof(headdata));
+    m_tailData = QByteArray::fromRawData(taildata, sizeof(taildata));
+    m_headConfig = QByteArray::fromRawData(headconfig, sizeof(headconfig));
+    m_tailConfig = QByteArray::fromRawData(tailconfig, sizeof(tailconfig));
     m_configDisable = QByteArray::fromRawData(configdisable, sizeof(configdisable));
     m_getFirmwareVersion = QByteArray::fromRawData(readfirmware, sizeof(readfirmware));
     m_getMacAddress = QByteArray::fromRawData(getmacaddress, sizeof(getmacaddress));
@@ -33,15 +33,27 @@ HLKLD2410::HLKLD2410(QString portName, QObject *parent) : QObject(parent)
     m_serial.setStopBits(QSerialPort::OneStop);
     m_serial.setParity(QSerialPort::NoParity);
     m_serial.setBaudRate(256000);
-    m_open = m_serial.open(QIODevice::ReadWrite);
-    if (!m_open) {
-        qWarning() << __PRETTY_FUNCTION__ << ": Serial port" << m_portName << "did not open successfully";
-    }
 }
 
 HLKLD2410::~HLKLD2410()
 {
     m_serial.close();
+}
+
+bool HLKLD2410::init()
+{
+    if (!openDevice()) {
+        return false;
+    }
+
+    if (configEnable()) {
+        getMacAddress();
+        getFirmwareVersion();
+        getResolution();
+        configDisable();
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -60,17 +72,11 @@ void HLKLD2410::run()
     int frameCount = 0;
     QByteArray frame;
 
-    if (configEnable()) {
-        getMacAddress();
-        getFirmwareVersion();
-        getResolution();
-        configDisable();
-    }
-
     while (m_serial.waitForReadyRead()) {
         frame += m_serial.readAll();
         // Guard against a runaway append situation, we should never get to 3.
-        if (frameCount++ == 3) {
+        if (frameCount++ == 5) {
+            qWarning() << __PRETTY_FUNCTION__ << ": Error decoding frame, data is likely incosistent now";
             frame.clear();
             frameCount = 0;
         }
@@ -78,6 +84,8 @@ void HLKLD2410::run()
         if (isValidDataFrame(frame)) {
             parseDataFrame(frame);
             frame.clear();
+            frameCount = 0;
+            return;
         }
     }
 }
@@ -124,25 +132,26 @@ bool HLKLD2410::endConfigMode()
  * with the returned values.
  */
 /*
-             4     6    8     10 11 12 13 14......................22 23......................30
+ *                                         1  2  3  4  5  6  7  8  9  1  2  3  4  5  6  7  8  9
+             4     6    8     10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32
 FD FC FB FA 1C 00 61 01 00 00 AA 08 08 08 14 14 14 14 14 14 14 14 14 19 19 19 19 19 19 19 19 19
+fd fc fb fa 1c 00 61 01 00 00 aa 08 08 08 32 32 28 1e 14 0f 0f 0f 0f 00 00 28 28 1e 1e 14 14 14 05 00 04 03 02 01
 */
 bool HLKLD2410::readParameters(Parameters *p)
 {
     if (m_config) {
         QByteArray frame;
         if (runConfigCommand(readparammark, m_readParams, &frame) > 0) {
-            qDebug() << __PRETTY_FUNCTION__ << ":" << frame.toHex();
             p->maxRange = decode8Bit(frame, 11);
             p->movingThresholds = decode8Bit(frame, 12);
             p->stationaryThresholds = decode8Bit(frame, 13);
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 9; i++) {
                 p->mtValues[i] = decode8Bit(frame, i+14);
             }
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 9; i++) {
                 p->stThresholds[i] == decode8Bit(frame, i+23);
             }
-//            p->unoccupiedDuration = decode16Bit(31);
+            p->unoccupiedDuration = decode16Bit(frame, 32);
         }
     }
     return false;
@@ -157,6 +166,7 @@ bool HLKLD2410::readParameters(Parameters *p)
 void HLKLD2410::restoreFactorySettings()
 {
     if (m_config) {
+        qDebug() << __PRETTY_FUNCTION__ << ": Restoring device to factory defaults";
         QByteArray frame;
         runConfigCommand(restorefactorymark, m_restoreFactorySettings, &frame);
     }
@@ -176,11 +186,13 @@ bool HLKLD2410::enableEngineering(bool state)
     if (m_config) {
         QByteArray frame;
         if (state) {
+            qDebug() << __PRETTY_FUNCTION__ << ": Turning on Engineering mode";
             if (runConfigCommand(enableengineeringmark, m_enableEngineering, &frame) > 0) {
                 return true;
             }
         }
         else {
+            qDebug() << __PRETTY_FUNCTION__ << ": Turning off Engineering mode";
             if (runConfigCommand(closeprojectmark, m_closeProject, &frame) > 0) {
                 return true;
             }
@@ -203,6 +215,7 @@ bool HLKLD2410::toggleBluetooth(BluetoothState state)
     if (m_config) {
         QByteArray frame;
         QByteArray t = m_bluetoothState;
+        qDebug() << __PRETTY_FUNCTION__ << ": Setting bluetooth state to" << state;
         if (state == BluetoothState::bton)
             t[8] == 0x01;
 
@@ -221,9 +234,13 @@ bool HLKLD2410::toggleBluetooth(BluetoothState state)
 void HLKLD2410::reboot()
 {
     if (m_config) {
+        qDebug() << __PRETTY_FUNCTION__ << ": Restarting device";
         QByteArray frame;
         runConfigCommand(restartmodulemark, m_restartModule, &frame);
     }
+    closeDevice();
+    QThread::sleep(1);
+    openDevice();
 }
 
 /**
@@ -249,7 +266,7 @@ bool HLKLD2410::setResolution(Resolution r)
 }
 
 /**
- * \fn bool HLKLD2410::setLightSense(LightSense s, uint8_t v, PinMode p)
+ * \fn bool HLKLD2410::setAuxFunction(LightSense s, uint8_t v, PinMode p)
  * \return Returns true if the reply matches the send and has a success code
  * \param s A LightSense enum which indicates what the light sensor does to the pin
  * \param v The sensitivity of the light sensor, from 0 to 255
@@ -259,11 +276,12 @@ bool HLKLD2410::setResolution(Resolution r)
  * \details This will enable/disable use of the light sensor and how the output pin
  * reacts to changes in light values. See the PDF for more details.
  */
-bool HLKLD2410::setLightSense(LightSense s, uint8_t v, PinMode p)
+bool HLKLD2410::setAuxFunction(LightSense s, uint8_t v, PinMode p)
 {
     if (m_config) {
         QByteArray frame;
         QByteArray t = m_lightSense;
+        qDebug() << __PRETTY_FUNCTION__ << ": Setting Light Sense function to" << s << "," << v << "," << p;
         t[8] = s;
         t[9] = v;
         t[10] = p;
@@ -299,6 +317,12 @@ bool HLKLD2410::setBluetoothPassword(uint8_t *pass, int size)
     return false;
 }
 
+/**
+ * \fn bool HLKLD2410::runNoiseCal()
+ * \return returns true if the call succeeds, false otherwise.
+ * \details This will ask the device to being the noise floor calibration routine. Please see
+ * the data sheet for more details about how to operate in this mode.
+ */
 bool HLKLD2410::runNoiseCal()
 {
     if (m_config) {
@@ -310,6 +334,12 @@ bool HLKLD2410::runNoiseCal()
     return false;
 }
 
+/**
+ * \fn HLKLD2410::CalStatus HLKLD2410::getNoiseCalStatus()
+ * \return returns an enum which indicates the tri state value the device is in after running a noise flor calibration.
+ * \details This can be called after the the noise floor calibration function is started. The return value can be used
+ * to determine when calibration is complete. See the datasheet to determine how this function operates.
+ */
 HLKLD2410::CalStatus HLKLD2410::getNoiseCalStatus()
 {
     if (m_config) {
@@ -331,6 +361,13 @@ HLKLD2410::CalStatus HLKLD2410::getNoiseCalStatus()
     return CalStatus::sterror;
 }
 
+/**
+ * \fn bool HLKLD2410::setBaudRate(BaudRate b)
+ * \return Returns true if the call succeeds, false otherwise
+ * \param b BaudRate enum which indciates what the actual baud rate needs to be encoded to the message
+ * \details Will set the baudrate to a value between 9600 and 460800, the default is 256000. After changing
+ * this value, the caller must reboot the device and reconnect to the serial port.
+ */
 bool HLKLD2410::setBaudRate(BaudRate b)
 {
     if (m_config) {
@@ -344,7 +381,15 @@ bool HLKLD2410::setBaudRate(BaudRate b)
     return false;
 }
 
-bool HLKLD2410::getLightSense(uint8_t &s, uint8_t &v, uint8_t &m)
+/**
+ * \fn bool HLKLD2410::getAuxFunction(uint8_t &s, uint8_t &v, uint8_t &m)
+ * \return Returns true if the call is successful, false if not
+ * \param s LightSense value
+ * \param v 0 to 255 value to trigger on
+ * \param m PinMode value
+ * \details This gets the Aux Function values currently set on the device
+ */
+bool HLKLD2410::getAuxFunction(uint8_t &s, uint8_t &v, uint8_t &m)
 {
     uint16_t size = 0;
     QByteArray frame;
@@ -369,9 +414,10 @@ bool HLKLD2410::configEnable()
     uint16_t size = 0;
     QByteArray frame;
 
-    qDebug() << __PRETTY_FUNCTION__ << ": Enabling config mode:";
+    qDebug() << __PRETTY_FUNCTION__ << ": Enabling config mode";
     if ((size = runConfigCommand(beginconfigmark, m_configEnable, &frame)) > 0) {
         if (getMarker(frame) == beginconfigmark && getACKStatus(frame)) {
+            m_bufferSize = decode16Bit(frame, 12);
             return true;
         }
     }
@@ -394,14 +440,14 @@ bool HLKLD2410::configDisable()
         }
     }
     else {
-        qWarning() << __PRETTY_FUNCTION__ << ": Got" << m_lastFrame.toHex() << "instead of config disable ACK";
+        qWarning() << __PRETTY_FUNCTION__ << ": Got" << frame.toHex() << "instead of config disable ACK";
     }
     return false;
 }
 
 /*
- *       1   2    1   2    1   2    1  1  ....................8   ....................8
- *       8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38
+ *       1    2    1   2    1   2    1  1  ....................8   ....................8
+ *       8  9  10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38
  * 01 AA 03 1E 00 3C 00 00 39 00 00 08 08 3C 22 05 03 03 04 03 06 05 00 00 39 10 13 06 06 08 04 03 05 55 00
  * 01 aa 03 3a 00 64 49 00 64 39 00 08 08 64 64 29 0b 06 09 02 0a 07 00 00 64 64 64 4b 17 13 09 0c 01 55 00
  */
@@ -424,11 +470,11 @@ void HLKLD2410::parseDataFrame(QByteArray &frame)
             m_enPayload.detectDistance = decode16Bit(frame, 15);
             m_enPayload.mmdd = decode8Bit(frame, 17);
             m_enPayload.mmsd = decode8Bit(frame, 18);
-            for (int i = 19; i < 27; i++) {
-                m_enPayload.mddev[i] = decode8Bit(frame, i);
+            for (int i = 0; i < 8; i++) {
+                m_enPayload.mddev[i] = decode8Bit(frame, i + 19);
             }
-            for (int i = 27; i < 35; i++) {
-                m_enPayload.sddev[i] = decode8Bit(frame, i);
+            for (int i = 0; i < 8; i++) {
+                m_enPayload.sddev[i] = decode8Bit(frame, i + 27);
             }
             m_enPayload.photoSensitive = decode8Bit(frame, 35);
             m_enPayload.outStatus = decode8Bit(frame, 36);
@@ -490,7 +536,7 @@ void HLKLD2410::getMacAddress()
         qDebug() << __PRETTY_FUNCTION__ << ": Device MAC:" << m_macAddress;
     }
     else {
-        qWarning() << __PRETTY_FUNCTION__ << ": Got a bad ACK for MAC command:" << size << ":" << m_lastFrame.toHex();
+        qWarning() << __PRETTY_FUNCTION__ << ": Got a bad ACK for MAC command:" << size << ":" << frame.toHex();
     }
 }
 
@@ -523,23 +569,21 @@ void HLKLD2410::getFirmwareVersion()
 uint16_t HLKLD2410::runConfigCommand(uint8_t marker, QByteArray &cmd, QByteArray *frame)
 {
     m_serial.write(cmd);
-    while (m_serial.waitForReadyRead(10000)) {
-        QByteArray r;
-        while (m_serial.waitForReadyRead()) {
-            r += m_serial.readAll();
-            if (isValidConfigFrame(r)) {
-                if (commandSuccess(r)) {
-                    if (marker == getMarker(r)) {
-                        *frame = r;
-                        return getSize(r);
-                    }
-                    else {
-                        qDebug() << __PRETTY_FUNCTION__ << ": Unexpected marker" << getMarker(r) << ", expecting" << marker << ":" << r.toHex();
-                    }
+    QByteArray r;
+    while (m_serial.waitForReadyRead()) {
+        r += m_serial.readAll();
+        if (isValidConfigFrame(r)) {
+            if (commandSuccess(r)) {
+                if (marker == getMarker(r)) {
+                    *frame = r;
+                    return getSize(r);
                 }
                 else {
-                    qDebug() << __PRETTY_FUNCTION__ << ": Failed command success check" << r.toHex();
+                    qDebug() << __PRETTY_FUNCTION__ << ": Unexpected marker" << getMarker(r) << ", expecting" << marker << ":" << r.toHex();
                 }
+            }
+            else {
+                qDebug() << __PRETTY_FUNCTION__ << ": Failed command success check" << r.toHex();
             }
         }
     }
@@ -564,7 +608,7 @@ uint8_t HLKLD2410::decode8Bit(QByteArray &frame, int begin)
 
 uint16_t HLKLD2410::decode16Bit(QByteArray &frame, int begin)
 {
-    QByteArray mid = m_lastFrame.mid(begin, 2);
+    QByteArray mid = frame.mid(begin, 2);
     QDataStream s(&mid, QIODevice::ReadOnly); // Attach a read-only stream to the data
     s.setByteOrder(QDataStream::LittleEndian);
     uint16_t v = 0;
@@ -662,11 +706,25 @@ bool HLKLD2410::isValidDataFrame(QByteArray &frame)
     return (frame.left(4) == m_headData) && (frame.right(4) == m_tailData);
 }
 
-/**
- * Will emit a value if the serialport encounters an issue
- */
 void HLKLD2410::errorOccurred(QSerialPort::SerialPortError e)
 {
     if (e != QSerialPort::NoError)
         emit error(e);
+}
+
+bool HLKLD2410::openDevice()
+{
+    qDebug() << __PRETTY_FUNCTION__ << ": Opening device";
+    m_open = m_serial.open(QIODevice::ReadWrite);
+    if (!m_open) {
+        qWarning() << __PRETTY_FUNCTION__ << ": Serial port" << m_portName << "did not open successfully";
+    }
+    return m_open;
+}
+
+void HLKLD2410::closeDevice()
+{
+    qDebug() << __PRETTY_FUNCTION__ << ": Closing device";
+    m_serial.close();
+    m_open = false;
 }

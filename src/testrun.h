@@ -13,9 +13,17 @@ public:
     void run();
 
 public slots:
-    void error();
-    void data();
+    void error(QSerialPort::SerialPortError e);
+    void data(HLKLD2410::Payload p);
+    void engineeringData(HLKLD2410::EngineeringPayload p);
+    void timeout();
+
+signals:
+    void startDevice();
 
 private:
+    QTimer *m_timer;
+    QThread m_thread;
     HLKLD2410 *m_sensor;
+    bool m_em;
 };

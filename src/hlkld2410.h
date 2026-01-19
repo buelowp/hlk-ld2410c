@@ -51,13 +51,24 @@ const char tailmarker = 0x55;
 const char noisedetectstartmaker = 0x0b;
 const char noisequerymarker = 0x1b;
 
+/**
+ * \class class HLKLD2410 : public QObject
+ * \brief HLKLD2410 controller class
+ * \details This class attempts to completely encapsulate the functions available
+ * from the mmwave detection module HLKLD2410. It uses QSerialPort and QObject to
+ * handle the async nature of this device.
+ */
 class HLKLD2410 : public QObject
 {
     Q_OBJECT
 public:
-    HLKLD2410(QString portName, QObject *parent = nullptr);
+    HLKLD2410(QString portName = QString("/dev/ttyAMA0"), QObject *parent = nullptr);
     ~HLKLD2410();
 
+    /**
+     * \struct Payload
+     * \details Contains the non engineering data structure.
+     */
     typedef struct PAYLOAD {
         uint8_t targetStatus;
         uint16_t mTargetDistance;
@@ -67,6 +78,10 @@ public:
         uint16_t detectDistance;
     } Payload;
 
+    /**
+     * \struct EngineeringPayload
+     * \details Contains all the engineering data structure.
+     */
     typedef struct ENGINEERING {
         uint8_t targetStatus;
         uint16_t mTargetDistance;
@@ -82,75 +97,104 @@ public:
         uint8_t outStatus;
     } EngineeringPayload;
 
+    /**
+     * \struct Parameters
+     * \details The returned parameters from the Param getter function
+     */
     typedef struct PARAMETERS {
         uint8_t maxRange;
         uint8_t movingThresholds;
         uint8_t stationaryThresholds;
-        uint8_t mtValues[8];
-        uint8_t stThresholds[8];
+        uint8_t mtValues[9];
+        uint8_t stThresholds[9];
         uint16_t unoccupiedDuration;
     } Parameters;
 
+    /**
+     * \enum Resolution
+     * \details Provides an abstraction for fine and course resolution settings
+     */
     typedef enum RESOLUTION {
-        course = 0,
-        fine = 1,
+        course = 0,             /*!< course, where course is 75cm resolution */
+        fine = 1,               /*!< fine, where fine is 20cm resolution */
     } Resolution;
 
+    /**
+     * \enum Baudrate
+     * \details Provides an abstraction for the possible supported baudrate values
+     */
     typedef enum BAUDRATE {
-        B9600 = 1,
-        B19200 = 2,
-        B38400 = 3,
-        B57600 = 4,
-        B115200 = 5,
-        B230400 = 6,
-        B256000 = 7,
-        B460800 = 8,
+        B9600 = 1,              /*!< B9600, for a baudrate of 9600bps */
+        B19200 = 2,             /*!< B19200, for a baudrate of 19200bps */
+        B38400 = 3,             /*!< B38400, for a baudrate of 38400bps */
+        B57600 = 4,             /*!< B57600, for a baudrate of 57600bps */
+        B115200 = 5,            /*!< B115200, for a baudrate of 115200bps */
+        B230400 = 6,            /*!< B230400, for a baudrate of 230400bps */
+        B256000 = 7,            /*!< B256000, for a baudrate of 256000bps */
+        B460800 = 8,            /*!< B460800, for a baudrate of 460800bps */
     } BaudRate;
 
+    /**
+     * \enum LightSense
+     * \details Provides an abstraction for the possible supported AUX function light sensor values
+     */
     typedef enum LIGHTSENSE {
-        off = 0,
-        togglelow = 1,
-        togglehigh = 2,
+        off = 0,                /*!< off, turns off the light sensor */
+        togglelow = 1,          /*!< togglelow, tells the device to toggle the OUT pin low when the light sense threshold is crossed */
+        togglehigh = 2,         /*!< togglehigh, tells the device to toggle the OUT pin high when the light sense threshold is crossed */
     } LightSense;
 
+    /**
+     * \enum PinMode
+     * \details Instructs the device to set the pin to be active LOW or active HIGH. See documentation for details. */
     typedef enum PINMODE {
-        low = 0,
-        high = 1,
+        low = 0,                /*!< low, make the pin signal by going LOW */
+        high = 1,               /*!< high, make the pin signal by going HIGH */
     } PinMode;
 
+    /**
+     * \enum CalStatus
+     * \details Provides an abstraction for the state of the noise floor calibration function
+     */
     typedef enum CALSTATUS {
-        stidle = 0,
-        stactive = 1,
-        stcomplete = 2,
-        sterror = 3,
+        stidle = 0,             /*!< stidle, the calibration function is not running */
+        stactive = 1,           /*!< stactive, the calibration function is currently running */
+        stcomplete = 2,         /*!< stcomplete, the calibration function has run successfully */
+        sterror = 3,            /*!< sterror, the calibration function did not complete successfully */
     } CalStatus;
 
+    /**
+     * \enum BluetoothState
+     * \details Provides an abstraction for setting the bluetooth state on the device
+     */
     typedef enum BTSTATE {
-        btoff = 0,
-        bton = 1,
+        btoff = 0,              /*!< btoff, turn off the bluetooth module */
+        bton = 1,               /*!< bton, turn on the bluetooth module */
     } BluetoothState;
 
-    void run();
-    bool isOpen() { return m_open; }
-    QString version() { return m_version; }
-    QString mac() { return m_macAddress; }
+    bool isOpen() { return m_open; }        //!< The current state of the serial port
+    QString version() { return m_version; } //!< The device version string as a QString
+    QString mac() { return m_macAddress; }  //!< The device MAC address as a QString
+    Resolution resolution() { return m_resolution; }    //!< The device resolution
+
     bool startConfigMode();
     bool endConfigMode();
     bool toggleBluetooth(BluetoothState state);
     void reboot();
     bool setResolution(Resolution r);
-    Resolution resolution() { return m_resolution; }
     void restoreFactorySettings();
     bool setBaudRate(BaudRate);
-    bool setLightSense(LightSense s, uint8_t v, PinMode p);
-    bool getLightSense(uint8_t &s, uint8_t &v, uint8_t &m);
+    bool setAuxFunction(LightSense s, uint8_t v, PinMode p);
+    bool getAuxFunction(uint8_t &s, uint8_t &v, uint8_t &m);
     bool runNoiseCal();
     CalStatus getNoiseCalStatus();
     bool setBluetoothPassword(uint8_t *pass, int size = 6);
     bool enableEngineering(bool state);
     bool readParameters(Parameters *p);
+    void run();
+    bool init();
 
-public slots:
+private slots:
     void errorOccurred(QSerialPort::SerialPortError error);
 
 signals:
@@ -180,6 +224,8 @@ private:
     uint8_t decode8Bit(QByteArray &frame, int begin);
     void parseDataFrame(QByteArray &frame);
     bool getACKStatus(QByteArray &frame);
+    bool openDevice();
+    void closeDevice();
 
     Payload m_payload;
     EngineeringPayload m_enPayload;
@@ -207,7 +253,6 @@ private:
     QByteArray m_setBTPass;
 
     QSerialPort m_serial;
-    QByteArray m_lastFrame;
     QString m_portName;
     bool m_open;
     bool m_config;
