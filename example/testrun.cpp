@@ -37,7 +37,10 @@ void TestRun::error(QSerialPort::SerialPortError e)
 void TestRun::data(HLKLD2410::Payload p)
 {
     m_em = false;
-    qDebug() << __PRETTY_FUNCTION__ << ": Target Status:" << p.targetStatus;
+    if (m_status != p.targetStatus) {
+        qDebug() << __PRETTY_FUNCTION__ << ": Got a new target Status indicator" << p.targetStatus;
+        m_status = p.targetStatus;
+    }
 }
 
 void TestRun::engineeringData(HLKLD2410::EngineeringPayload p)

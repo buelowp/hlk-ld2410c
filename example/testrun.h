@@ -26,4 +26,5 @@ private:
     QThread m_thread;
     HLKLD2410 *m_sensor;
     bool m_em;
+    uint8_t m_status;
 };
